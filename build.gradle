@@ -1,0 +1,71 @@
+import org.apache.tools.ant.filters.FixCrLfFilter
+
+plugins {
+    id 'org.jetbrains.kotlin.jvm' version '1.3.61'
+    id 'application'
+    id "com.github.johnrengelman.shadow" version "5.2.0"
+    id 'antlr'
+}
+
+repositories {
+    jcenter()
+}
+
+String asmVersion = "7.3.1"
+
+dependencies {
+    antlr "org.antlr:antlr4:4.8"
+    implementation platform('org.jetbrains.kotlin:kotlin-bom')
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8'
+    testImplementation 'org.jetbrains.kotlin:kotlin-test'
+    testImplementation 'org.jetbrains.kotlin:kotlin-test-junit'
+
+    implementation "org.ow2.asm:asm:$asmVersion"
+    implementation "org.ow2.asm:asm-commons:$asmVersion"
+    implementation "org.ow2.asm:asm-util:$asmVersion"
+}
+
+
+generateGrammarSource {
+    arguments += [
+            '-Xlog',
+            '-long-messages',
+            '-visitor',
+            '-listener',
+            '-package', 'org.tekolang.frontend.antlr'
+    ]
+    outputDirectory = file("${projectDir}/build/tmp_antlr")
+}
+
+
+task filter(type: Copy, dependsOn: generateGrammarSource) {
+    from file("${projectDir}/build/tmp_antlr")
+    into file("${projectDir}/src/main/java/org/tekolang/frontend/antlr")
+    filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance("lf"))
+}
+
+compileKotlin.dependsOn filter
+
+application {
+    mainClassName = 'org.tekolang.MainKt'
+}
+
+startShadowScripts {
+    applicationName = 'krfc'
+}
+
+
+gradle.projectsEvaluated {
+    tasks.withType(JavaCompile) {
+        options.compilerArgs << "-Xlint:all" << "-Werror"
+    }
+}
+
+compileJava {
+    doFirst {
+        options.compilerArgs = [
+                "--module-path", classpath.asPath
+        ]
+        classpath = files()
+    }
+}
